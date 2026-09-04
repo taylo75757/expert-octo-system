@@ -1,0 +1,37 @@
+name: Unthrottled Fast Proxy
+on:
+  workflow_dispatch:
+
+jobs:
+  high-speed-proxy:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Disable Windows Firewall
+        run: |
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+      # تشغيل سيرفر SOCKS5
+      - name: Setup GOST Proxy
+        run: |
+          $url = "https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-windows-amd64-2.11.5.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\gost.zip"
+          Expand-Archive -Path "$env:TEMP\gost.zip" -DestinationPath "$env:ProgramData\gost" -Force
+          Start-Process "$env:ProgramData\gost\gost-windows-amd64.exe" -ArgumentList "-L=socks5://:1080" -WindowStyle Hidden
+
+      # تحميل وتشغيل Bore بدون تحديد سرعة (No Speed Limits)
+      - name: Start High-Speed Bore Tunnel
+        shell: bash
+        run: |
+          curl -L -o bore.zip https://github.com/ekzhang/bore/releases/download/v0.5.2/bore-v0.5.2-x86_64-pc-windows-msvc.zip
+          unzip bore.zip
+          ./bore.exe local 1080 --to bore.pub > bore.log 2>&1 &
+          sleep 5
+          cat bore.log
+          echo "=========================================================="
+          grep -o "listening at bore.pub:[0-9]*" bore.log || cat bore.log
+          echo "=========================================================="
+
+      - name: Maintain Connection
+        run: |
+          while ($true) { Start-Sleep -Seconds 300 }
